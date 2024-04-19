@@ -1,0 +1,10 @@
+plan: false
+
+vars:
+  service: something
+
+scripts:
+  something:
+    description: "some action"
+    actions:
+      - shell: echo "something"

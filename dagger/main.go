@@ -28,6 +28,7 @@ type Shuttle struct{}
 
 const version = "v0.23.0"
 
+// ShuttleBin Provides the raw binary for shuttle as a file
 func (m *Shuttle) ShuttleBin() *dagger.File {
 	os := runtime.GOOS
 	arch := runtime.GOARCH
@@ -42,6 +43,7 @@ func (m *Shuttle) ShuttleBin() *dagger.File {
 	)
 }
 
+// Exec allows calling into a user generated query for the shuttle binary
 func (m *Shuttle) Exec(
 	directory *Directory,
 	args ...string,
@@ -53,10 +55,10 @@ func (m *Shuttle) Exec(
 		}).
 		WithDirectory("/mnt", directory).
 		WithWorkdir("/mnt").
-		WithExec([]string{"ls", "/usr/local/bin"}).
 		WithExec(append([]string{"shuttle"}, args...))
 }
 
+// Version prints the version of the shuttle binary
 func (m *Shuttle) Version(
 	ctx context.Context,
 	directory *Directory,
@@ -64,15 +66,25 @@ func (m *Shuttle) Version(
 	return m.Exec(directory, "version").Stdout(ctx)
 }
 
+// Prepare pulls the latest plan from shuttle if found and exports it to the host directory at .shuttle
 func (m *Shuttle) Prepare(
 	ctx context.Context,
 	directory *Directory,
-) error {
-	shuttle := m.Exec(directory, "prepare")
+	// +default=false
+	skipPull bool,
+) *dagger.Container {
+	shuttle := m.Exec(directory, "prepare", "--skip-pull", fmt.Sprint(skipPull))
 
-	_, err := shuttle.
-		Directory(".shuttle").
-		Export(ctx, ".shuttle")
+	return shuttle
+}
 
-	return err
+// Run executes a user defined query on a prepared shuttle repository
+func (m *Shuttle) Run(
+	ctx context.Context,
+	directory *Directory,
+	args ...string,
+) *dagger.Container {
+	shuttle := m.Prepare(ctx, directory, true)
+
+	return shuttle.WithExec(append([]string{"shuttle", "run"}, args...))
 }
