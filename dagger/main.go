@@ -18,6 +18,7 @@ import (
 	"context"
 	"dagger/shuttle-dagger/internal/dagger"
 	"fmt"
+	"log"
 	"runtime"
 )
 
@@ -27,9 +28,11 @@ type Shuttle struct{}
 
 const version = "v0.23.0"
 
-func (m *Shuttle) ShuttleContainer() *dagger.File {
+func (m *Shuttle) ShuttleBin() *dagger.File {
 	os := runtime.GOOS
 	arch := runtime.GOARCH
+
+	log.Printf("os: %s, arch: %s", os, arch)
 
 	return dag.HTTP(
 		fmt.Sprintf(
@@ -39,12 +42,37 @@ func (m *Shuttle) ShuttleContainer() *dagger.File {
 	)
 }
 
-// Returns lines that match a pattern in the files of the provided Directory
-func (m *Shuttle) GrepDir(ctx context.Context, directoryArg *Directory, pattern string) (string, error) {
+func (m *Shuttle) Exec(
+	directory *Directory,
+	args ...string,
+) *dagger.Container {
 	return dag.Container().
 		From("alpine:latest").
-		WithMountedDirectory("/mnt", directoryArg).
+		WithFile("/usr/local/bin/shuttle", m.ShuttleBin(), dagger.ContainerWithFileOpts{
+			Permissions: 755,
+		}).
+		WithDirectory("/mnt", directory).
 		WithWorkdir("/mnt").
-		WithExec([]string{"grep", "-R", pattern, "."}).
-		Stdout(ctx)
+		WithExec([]string{"ls", "/usr/local/bin"}).
+		WithExec(append([]string{"shuttle"}, args...))
+}
+
+func (m *Shuttle) Version(
+	ctx context.Context,
+	directory *Directory,
+) (string, error) {
+	return m.Exec(directory, "version").Stdout(ctx)
+}
+
+func (m *Shuttle) Prepare(
+	ctx context.Context,
+	directory *Directory,
+) error {
+	shuttle := m.Exec(directory, "prepare")
+
+	_, err := shuttle.
+		Directory(".shuttle").
+		Export(ctx, ".shuttle")
+
+	return err
 }
