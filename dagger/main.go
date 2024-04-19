@@ -20,8 +20,6 @@ import (
 	"fmt"
 	"log"
 	"runtime"
-
-	"dagger.io/dagger/dag"
 )
 
 type Shuttle struct{}
